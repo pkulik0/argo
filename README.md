@@ -14,8 +14,8 @@ Almost as effortless as it gets.
     import "github.com/pkulik0/argo"
 
     type myArgs struct {
-        Address string `argo:"short;long=addr"`
-        Port    int    `argo:"short;long;required"`
+        Address string `argo:"short,long=addr"`
+        Port    int    `argo:"short,long,required"`
     }
 
     func main() {
@@ -31,6 +31,7 @@ Almost as effortless as it gets.
 
 - `short` - enables a single character flag 
 - `long` - enables a multi character flag
+- `positional` - enables a positional argument at the next available position, can't be used with `short` or `long`
 - `required` - makes the argument required
 - `env` - query the environment for the argument value
 - `default` - provides a default value for the argument
