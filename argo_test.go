@@ -19,11 +19,11 @@ func TestNotPointer(t *testing.T) {
 }
 
 type argsSimple struct {
-	address string `argo:"short=a;long=addr;help=Address to connect to"`
+	address string `argo:"short=a,long=addr,help=Address to connect to"`
 }
 
 func TestSimple(t *testing.T) {
-	var args argsSimple
+	args := argsSimple{}
 	if err := argo.Parse(&args); err != nil {
 		t.Fatal(err)
 	}
