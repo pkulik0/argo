@@ -35,8 +35,7 @@ type example3 struct {
 
 func main() {
 	args := &example{}
-	err := argo.Parse(args)
-	if err != nil {
+	if err := argo.Parse(args); err != nil {
 		panic(err)
 	}
 }
