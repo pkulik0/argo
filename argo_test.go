@@ -821,6 +821,11 @@ type argsDuplicates2 struct {
 	B string `argo:"long=abc"`
 }
 
+type argsDuplicate3 struct {
+	A string `argo:"env=ABC"`
+	B string `argo:"env=ABC"`
+}
+
 func TestDuplicateName(t *testing.T) {
 	os.Args = []string{"test", "-a", "name"}
 	args := argsDuplicates{}
@@ -831,6 +836,12 @@ func TestDuplicateName(t *testing.T) {
 	os.Args = []string{"test", "--abc", "name"}
 	args2 := argsDuplicates2{}
 	if err := Parse(&args2); err == nil {
+		t.Fatal("expected error")
+	}
+
+	os.Args = []string{"test"}
+	args3 := argsDuplicate3{}
+	if err := Parse(&args3); err == nil {
 		t.Fatal("expected error")
 	}
 }
@@ -886,23 +897,6 @@ func TestNeitherShortNorLong(t *testing.T) {
 	}
 }
 
-type invalidFieldType struct {
-	A int
-}
-
-type argsInvalidType struct {
-	B int              `argo:"short"`
-	C invalidFieldType `argo:"short"`
-}
-
-func TestUnsupportedType(t *testing.T) {
-	os.Args = []string{"test", "-b", "123", "-c", "456"}
-	args := argsInvalidType{}
-	if err := Parse(&args); err == nil {
-		t.Fatal("expected error")
-	}
-}
-
 type argsPointers struct {
 	A   *string `argo:"short=a"`
 	B   *int    `argo:"short=b"`
@@ -923,5 +917,29 @@ func TestPointers(t *testing.T) {
 	}
 	if args.XYZ != nil {
 		t.Fatal("expected 'XYZ' to be nil")
+	}
+}
+
+type argsUnsupported struct {
+	A complex64 `argo:"short=a"`
+}
+
+func TestUnsupportedType(t *testing.T) {
+	os.Args = []string{"test", "-a", "123"}
+	args := argsUnsupported{}
+	if err := Parse(&args); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+type argsUnknown struct {
+	A string `argo:"short=a,unknown,"`
+}
+
+func TestUnknown(t *testing.T) {
+	os.Args = []string{"test", "-a", "123"}
+	args := argsUnknown{}
+	if err := Parse(&args); err == nil {
+		t.Fatal("expected error")
 	}
 }

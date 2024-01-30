@@ -150,17 +150,14 @@ func (r *argsRegistry) parseInput() error {
 				return newError(fmt.Sprintf("%s (%s)", errUnknownFlagName, argName))
 			}
 
-			if argument.isFlag {
-				err := argument.setter("true")
-				if err != nil {
-					return newError(fmt.Sprintf("%s (%s = true): %s", errCouldNotSet, argument.name, err))
-				}
-			} else {
+			if !argument.isFlag {
 				i++
 				err := argument.setter(args[i])
 				if err != nil {
 					return newError(fmt.Sprintf("%s (%s = %s): %s", errCouldNotSet, argument.name, args[i], err))
 				}
+			} else {
+				_ = argument.setter("true")
 			}
 
 			continue
@@ -386,10 +383,6 @@ func parseAttributeIdentifier(value string, defaultValue string, out *string) er
 }
 
 func parseAttribute(fieldName string, attribute string, argument *arg) error {
-	if attribute == "" {
-		return newError(errMalformedAttribute)
-	}
-
 	attrKey, attrValue, err := attributeToKeyValue(attribute)
 	if err != nil {
 		return err
