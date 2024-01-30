@@ -34,7 +34,7 @@ const (
 	errPositionalNotAtEnd       string = "positional arguments must be at the end"
 	errPositionalDefaultNotLast string = "positional arguments can have a default value only if no arguments without one follow"
 	errDuplicateFlagName        string = "duplicate flag name, consider changing the short or long attribute"
-	errUnknownFlagName          string = "unknown flag name"
+	errUnknownArgumentName      string = "unknown argument name"
 	errUnexpectedArgument       string = "unexpected argument"
 	errRequiredNotSet           string = "required argument not set"
 	errPositionalNotSet         string = "positional argument not set"
@@ -147,7 +147,7 @@ func (r *argsRegistry) parseInput() error {
 			}
 
 			if argument == nil {
-				return newError(fmt.Sprintf("%s (%s)", errUnknownFlagName, argName))
+				return newError(fmt.Sprintf("%s (%s)", errUnknownArgumentName, argName))
 			}
 
 			if !argument.isFlag {

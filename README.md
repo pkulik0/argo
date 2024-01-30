@@ -41,7 +41,7 @@ func main() {
 }
 ```
 
-## Supported attributes
+## Field attributes
 
 - `short` - enables a single character flag 
 - `long` - enables a multi character flag
@@ -51,7 +51,15 @@ func main() {
 - `default` - provides a default value for the argument
 - `help` - provides a help message for the argument
 
-## Supported types
+### Attribute precedence
+
+1. Positional 
+2. Short / Long
+2. Environment 
+3. Default 
+4. *Required* 
+
+## Supported field types
 
 - `string`
 - `intN`
@@ -60,3 +68,9 @@ func main() {
 - `bool`
 - `interface`
 - Use `argo.RegisterSetter()` to register a custom setter for a type
+
+## Installation
+
+```bash
+go get -u github.com/pkulik0/argo
+```
