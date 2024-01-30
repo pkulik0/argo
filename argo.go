@@ -2,7 +2,6 @@ package argo
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"reflect"
 	"regexp"
@@ -24,23 +23,24 @@ const (
 	attributeSeparator      string = ","
 	attributeValueSeparator string = "="
 
-	errNotPointerToStruct    string = "argument must be a pointer to a struct"
-	errAttributeMissingValue string = "attribute missing value"
-	errUnknownAttribute      string = "unknown attribute"
-	errMalformedAttribute    string = "malformed attribute"
-	errAttributeInvalidValue string = "attribute has invalid value"
-	errShortNotSingleChar    string = "short attribute value must be a single character"
-	errUnsupportedType       string = "unsupported type"
-	errSetterAlreadyExists   string = "setter already exists"
-	errPositionalNotLast     string = "positional argument must be the last one"
-	errPositionalConflict    string = "positional arguments cannot have short or long attributes"
-	errDuplicateFlagName     string = "duplicate flag name"
-	errUnknownFlagName       string = "unknown flag name"
-	errUnexpectedArgument    string = "unexpected argument"
-	errRequiredNotSet        string = "required argument not set"
-	errPositionalNotSet      string = "positional argument not set"
-	errFieldNotExported      string = "field is not exported"
-	errCouldNotSet           string = "could not set value"
+	errNotPointerToStruct       string = "argument must be a pointer to a struct"
+	errAttributeMissingValue    string = "attribute missing value"
+	errUnknownAttribute         string = "unknown attribute"
+	errMalformedAttribute       string = "malformed attribute"
+	errAttributeInvalidValue    string = "attribute has invalid value"
+	errShortNotSingleChar       string = "short attribute value must be a single character"
+	errUnsupportedType          string = "unsupported type"
+	errSetterAlreadyExists      string = "setter already exists"
+	errPositionalNotAtEnd       string = "positional arguments must be at the end"
+	errPositionalConflict       string = "positional arguments cannot have short or long attributes"
+	errPositionalDefaultNotLast string = "positional arguments can have a default value only if no arguments without one follow"
+	errDuplicateFlagName        string = "duplicate flag name"
+	errUnknownFlagName          string = "unknown flag name"
+	errUnexpectedArgument       string = "unexpected argument"
+	errRequiredNotSet           string = "required argument not set"
+	errPositionalNotSet         string = "positional argument not set"
+	errFieldNotExported         string = "field is not exported"
+	errCouldNotSet              string = "could not set value"
 )
 
 type setterFunc func(string, reflect.Value) error
@@ -55,7 +55,7 @@ var setters = map[reflect.Kind]setterFunc{
 	reflect.Bool: func(s string, value reflect.Value) error {
 		boolValue, err := strconv.ParseBool(s)
 		if err != nil {
-			return newError(fmt.Sprintf("%s (%s)", errCouldNotSet, s))
+			return err
 		}
 		value.SetBool(boolValue)
 		return nil
@@ -102,7 +102,8 @@ var setters = map[reflect.Kind]setterFunc{
 	},
 }
 
-func RegisterSetter(kind reflect.Kind, setter setterFunc) error {
+func RegisterSetter(t interface{}, setter setterFunc) error {
+	kind := reflect.TypeOf(t).Kind()
 	if _, ok := setters[kind]; ok {
 		return newError(fmt.Sprintf("%s (%s)", errSetterAlreadyExists, kind))
 	}
@@ -111,11 +112,12 @@ func RegisterSetter(kind reflect.Kind, setter setterFunc) error {
 }
 
 type field struct {
+	name         string
 	short        string
 	long         string
+	env          string
 	isPositional bool
 	isRequired   bool
-	fromEnv      bool
 	help         string
 	defaultValue string
 	setter       fieldSetterFunc
@@ -148,6 +150,23 @@ func newRegisteredArgs() *registeredArgs {
 	}
 }
 
+func (r *registeredArgs) Range() <-chan *field {
+	ch := make(chan *field)
+	go func() {
+		for _, arg := range r.short {
+			ch <- arg
+		}
+		for _, arg := range r.long {
+			ch <- arg
+		}
+		for _, arg := range r.positional {
+			ch <- arg
+		}
+		close(ch)
+	}()
+	return ch
+}
+
 func Parse(outputStruct interface{}) error {
 	outputValue := reflect.ValueOf(outputStruct)
 
@@ -169,7 +188,6 @@ func Parse(outputStruct interface{}) error {
 	positionalIndex := 0
 	for i := 0; i < len(args); i++ {
 		arg := args[i]
-		log.Printf("arg: %s", arg)
 
 		if strings.HasPrefix(arg, "-") {
 			if positionalIndex != 0 {
@@ -192,7 +210,7 @@ func Parse(outputStruct interface{}) error {
 				return newError(fmt.Sprintf("%s (%s)", errUnknownFlagName, argName))
 			}
 			if err := regArg.setter(argValue); err != nil {
-				return err
+				return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, regArg.name, arg))
 			}
 			regArg.wasSet = true
 			continue
@@ -204,35 +222,47 @@ func Parse(outputStruct interface{}) error {
 
 		regArg := registeredArgs.positional[positionalIndex]
 		if err := regArg.setter(arg); err != nil {
-			return err
+			return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, regArg.name, arg))
 		}
 		regArg.wasSet = true
 		positionalIndex++
 	}
 
-	for _, regArg := range registeredArgs.short {
+	alreadyHasPositional := false
+	for regArg := range registeredArgs.Range() {
 		if regArg.wasSet {
 			continue
 		}
 
 		if regArg.isPositional {
+			alreadyHasPositional = true
+			if regArg.defaultValue != "" {
+				if err := regArg.setter(regArg.defaultValue); err != nil {
+					return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, regArg.name, regArg.defaultValue))
+				}
+				continue
+			}
 			return newError(errPositionalNotSet)
 		}
-		if regArg.isRequired {
-			return newError(fmt.Sprintf("%s (%s)", errRequiredNotSet, regArg.short))
+		if alreadyHasPositional {
+			return newError(errPositionalNotAtEnd)
 		}
-		if regArg.fromEnv {
-			envValue := os.Getenv(regArg.short)
+
+		if regArg.env != "" {
+			envValue := os.Getenv(regArg.env)
 			if envValue != "" {
 				if err := regArg.setter(envValue); err != nil {
-					return err
+					return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, regArg.name, envValue))
 				}
 				regArg.wasSet = true
 			}
 		}
+		if regArg.isRequired {
+			return newError(fmt.Sprintf("%s (%s)", errRequiredNotSet, regArg.short))
+		}
 		if regArg.defaultValue != "" {
 			if err := regArg.setter(regArg.defaultValue); err != nil {
-				return err
+				return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, regArg.name, regArg.defaultValue))
 			}
 		}
 	}
@@ -244,6 +274,7 @@ func parseStruct(elem reflect.Value) (*registeredArgs, error) {
 	registeredArgs := newRegisteredArgs()
 
 	alreadyHasPositional := false
+	alreadyHasDefaultedPositional := false
 	for i := 0; i < elem.NumField(); i++ {
 		value := elem.Field(i)
 		structField := elem.Type().Field(i)
@@ -260,15 +291,22 @@ func parseStruct(elem reflect.Value) (*registeredArgs, error) {
 		if err != nil {
 			return nil, err
 		}
-		log.Printf("%+v", parsedField)
 
 		if parsedField.isPositional {
+			if alreadyHasDefaultedPositional {
+				return nil, newError(fmt.Sprintf("%s (%s)", errPositionalDefaultNotLast, structField.Name))
+			}
+
 			registeredArgs.positional = append(registeredArgs.positional, parsedField)
+
 			alreadyHasPositional = true
+			if parsedField.defaultValue != "" {
+				alreadyHasDefaultedPositional = true
+			}
 			continue
 		}
 		if alreadyHasPositional {
-			return nil, newError(fmt.Sprintf("%s (%s)", errPositionalNotLast, structField.Name))
+			return nil, newError(fmt.Sprintf("%s (%s)", errPositionalNotAtEnd, structField.Name))
 		}
 
 		if parsedField.short != "" {
@@ -288,7 +326,9 @@ func parseStruct(elem reflect.Value) (*registeredArgs, error) {
 }
 
 func parseField(fieldValue reflect.Value, structField reflect.StructField) (*field, error) {
-	parsedField := &field{}
+	parsedField := &field{
+		name: structField.Name,
+	}
 	attributes := strings.Split(structField.Tag.Get(argoTag), attributeSeparator)
 
 	for _, attr := range attributes {
@@ -352,6 +392,20 @@ func parseAttributeBool(value string, out *bool) error {
 	return nil
 }
 
+func parseAttributeIdentifier(value string, defaultValue string, out *string) error {
+	if value == "" {
+		*out = defaultValue
+		return nil
+	}
+
+	if err := validateIdentifier(value); err != nil {
+		return err
+	}
+
+	*out = value
+	return nil
+}
+
 func parseAttribute(fieldName string, attribute string, parsedAttributes *field) error {
 	if attribute == "" {
 		return newError(errMalformedAttribute)
@@ -376,20 +430,13 @@ func parseAttribute(fieldName string, attribute string, parsedAttributes *field)
 		}
 		parsedAttributes.short = attrValue[:1]
 	case longAttribute:
-		if attrValue == "" {
-			attrValue = fieldName
-		} else {
-			if err := validateIdentifier(attrValue); err != nil {
-				return err
-			}
-		}
-		parsedAttributes.long = attrValue
+		return parseAttributeIdentifier(attrValue, strings.ToLower(fieldName), &parsedAttributes.long)
 	case positionalAttribute:
 		return parseAttributeBool(attrValue, &parsedAttributes.isPositional)
 	case requiredAttribute:
 		return parseAttributeBool(attrValue, &parsedAttributes.isRequired)
 	case envAttribute:
-		return parseAttributeBool(attrValue, &parsedAttributes.fromEnv)
+		return parseAttributeIdentifier(attrValue, strings.ToUpper(fieldName), &parsedAttributes.env)
 	case helpAttribute:
 		if attrValue == "" {
 			return newError(fmt.Sprintf("%s (%s)", errAttributeMissingValue, attrKey))
@@ -409,7 +456,7 @@ func parseAttribute(fieldName string, attribute string, parsedAttributes *field)
 func setterInt(value string, out reflect.Value, bitSize int) error {
 	intValue, err := strconv.ParseInt(value, 10, bitSize)
 	if err != nil {
-		return newError(fmt.Sprintf("%s (%s)", errCouldNotSet, value))
+		return err
 	}
 	out.SetInt(intValue)
 	return nil
@@ -418,7 +465,7 @@ func setterInt(value string, out reflect.Value, bitSize int) error {
 func setterUint(value string, out reflect.Value, bitSize int) error {
 	uintValue, err := strconv.ParseUint(value, 10, bitSize)
 	if err != nil {
-		return newError(fmt.Sprintf("%s (%s)", errCouldNotSet, value))
+		return err
 	}
 	out.SetUint(uintValue)
 	return nil
@@ -427,7 +474,7 @@ func setterUint(value string, out reflect.Value, bitSize int) error {
 func setterFloat(value string, out reflect.Value, bitSize int) error {
 	floatValue, err := strconv.ParseFloat(value, bitSize)
 	if err != nil {
-		return newError(fmt.Sprintf("%s (%s)", errCouldNotSet, value))
+		return err
 	}
 	out.SetFloat(floatValue)
 	return nil

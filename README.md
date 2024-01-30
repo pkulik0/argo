@@ -44,3 +44,5 @@ Almost as effortless as it gets.
 - `uintN`
 - `floatN`
 - `bool`
+- `interface`
+- Use `argo.RegisterSetter()` to register a custom setter for a type

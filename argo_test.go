@@ -64,22 +64,6 @@ func TestParseAttributesBool(t *testing.T) {
 	if attribs.isRequired {
 		t.Fatal("expected 'isRequired' to be false")
 	}
-
-	attribs = &field{}
-	if err := parseAttribute("name", "env", attribs); err != nil {
-		t.Fatal(err)
-	}
-	if !attribs.fromEnv {
-		t.Fatal("expected 'fromEnv' to be true")
-	}
-
-	attribs = &field{}
-	if err := parseAttribute("name", "env=true", attribs); err != nil {
-		t.Fatal(err)
-	}
-	if !attribs.fromEnv {
-		t.Fatal("expected 'fromEnv' to be true")
-	}
 }
 
 func TestParseAttributesString(t *testing.T) {
@@ -97,6 +81,22 @@ func TestParseAttributesString(t *testing.T) {
 	}
 	if attribs.defaultValue != "123,abc" {
 		t.Fatalf("expected '123,abc', got '%s'", attribs.defaultValue)
+	}
+
+	attribs = &field{}
+	if err := parseAttribute("name", "env", attribs); err != nil {
+		t.Fatal(err)
+	}
+	if attribs.env != "NAME" {
+		t.Fatalf("expected 'env' to be 'NAME', got '%s'", attribs.env)
+	}
+
+	attribs = &field{}
+	if err := parseAttribute("abc_123", "env=abc_123", attribs); err != nil {
+		t.Fatal(err)
+	}
+	if attribs.env != "abc_123" {
+		t.Fatalf("expected 'env' to be 'abc_123', got '%s'", attribs.env)
 	}
 }
 
@@ -178,8 +178,8 @@ func TestParseField(t *testing.T) {
 	if !attribs.isRequired {
 		t.Fatal("expected 'isRequired' to be true")
 	}
-	if !attribs.fromEnv {
-		t.Fatal("expected 'fromEnv' to be true")
+	if attribs.env != "NAME" {
+		t.Fatalf("expected 'env' to be 'NAME', got '%s'", attribs.env)
 	}
 	if attribs.defaultValue != "123abc" {
 		t.Fatalf("expected '123abc', got '%s'", attribs.defaultValue)
@@ -207,8 +207,8 @@ func TestParseField(t *testing.T) {
 	if attribs.isRequired {
 		t.Fatal("expected 'isRequired' to be false")
 	}
-	if attribs.fromEnv {
-		t.Fatal("expected 'fromEnv' to be false")
+	if attribs.env != "" {
+		t.Fatalf("expected env to be '', got '%s'", attribs.env)
 	}
 	if attribs.defaultValue != "default value" {
 		t.Fatalf("expected 'default value', got '%s'", attribs.defaultValue)
@@ -261,4 +261,66 @@ func TestSimple(t *testing.T) {
 		t.Fatalf("expected '127.0.0.1', got '%s'", args.Address)
 	}
 
+}
+
+type argsPositional struct {
+	Host string `argo:"positional"`
+	Port int    `argo:"positional"`
+}
+
+func TestPositional(t *testing.T) {
+	os.Args = []string{"test", "localhost", "1234"}
+	args := argsPositional{}
+	if err := Parse(&args); err != nil {
+		t.Fatal(err)
+	}
+	if args.Host != "localhost" {
+		t.Fatalf("expected 'localhost', got '%s'", args.Host)
+	}
+	if args.Port != 1234 {
+		t.Fatalf("expected '1234', got '%d'", args.Port)
+	}
+}
+
+type argsPositionalDefault struct {
+	Host string `argo:"positional"`
+	Port int    `argo:"positional,default=1234"`
+}
+
+func TestPositionalDefault(t *testing.T) {
+	os.Args = []string{"test", "localhost"}
+	args := argsPositionalDefault{}
+	if err := Parse(&args); err != nil {
+		t.Fatal(err)
+	}
+	if args.Host != "localhost" {
+		t.Fatalf("expected 'localhost', got '%s'", args.Host)
+	}
+	if args.Port != 1234 {
+		t.Fatalf("expected '1234', got '%d'", args.Port)
+	}
+}
+
+type argsPositionalDefaultInvalid struct {
+	Host  string `argo:"positional"`
+	Port  int    `argo:"positional,default=1234"`
+	Speed int    `argo:"positional"`
+}
+
+type argsPositionalDefaultInvalid2 struct {
+	Host string `argo:"long"`
+	Port int    `argo:"positional"`
+}
+
+func TestPositionalDefaultInvalid(t *testing.T) {
+	os.Args = []string{"test", "localhost"}
+	args := argsPositionalDefaultInvalid{}
+	if err := Parse(&args); err == nil {
+		t.Fatal("expected error")
+	}
+
+	args2 := argsPositionalDefaultInvalid2{}
+	if err := Parse(&args2); err == nil {
+		t.Fatal("expected error")
+	}
 }
