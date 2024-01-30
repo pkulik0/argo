@@ -1,30 +1,36 @@
-# argo 
+# Argo 
 
-**Argo** is a user friendly argument parser for Go.
-To use argo you need to define a struct with the arguments you want to parse.
-Argo will use the struct tags to know how to parse the arguments.
+**Argo** is a user-friendly argument parser for Go.
 
-Almost as effortless as it gets.
+It supports positional arguments, environment variables, default values, and flags.
+
+Configuration is done through struct tags.
+
 
 ## Example
 
 ```go
-    package main
+package main
     
-    import "github.com/pkulik0/argo"
+import "github.com/pkulik0/argo"
 
-    type myArgs struct {
-        Address string `argo:"short,long=addr"`
-        Port    int    `argo:"short,long,required"`
-    }
+type myArgs struct {
+	Address string `argo:"short,long=addr"`
+	Port    int    `argo:"short,long,required"`
+}
 
-    func main() {
-        args := &myArgs{}
-        err := argo.Parse(args)
-        if err != nil {
-            panic(err)
-        }
-    }
+type myArgs2 struct {
+	Username string `argo:"positional,default=admin"`
+	Password int    `argo:"required,env"`
+}
+
+func main() {
+	args := &myArgs{}
+	err := argo.Parse(args)
+	if err != nil {
+		panic(err)
+	}
+}
 ```
 
 ## Supported attributes

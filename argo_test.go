@@ -227,6 +227,7 @@ func TestEmpty(t *testing.T) {
 }
 
 func TestNotPointer(t *testing.T) {
+	os.Args = []string{"test"}
 	if err := Parse(struct{}{}); err == nil {
 		t.Fatal("expected error")
 	}
@@ -322,5 +323,150 @@ func TestPositionalDefaultInvalid(t *testing.T) {
 	args2 := argsPositionalDefaultInvalid2{}
 	if err := Parse(&args2); err == nil {
 		t.Fatal("expected error")
+	}
+}
+
+type argsTestLong struct {
+	Host string `argo:"long=hostname"`
+	Port int    `argo:"long=long"`
+}
+
+func TestLong(t *testing.T) {
+	run := func() {
+		args := argsTestLong{}
+		if err := Parse(&args); err != nil {
+			t.Fatal(err)
+		}
+		if args.Host != "localhost" {
+			t.Fatalf("expected 'localhost', got '%s'", args.Host)
+		}
+		if args.Port != 1234 {
+			t.Fatalf("expected '1234', got '%d'", args.Port)
+		}
+	}
+	os.Args = []string{"test", "--hostname", "localhost", "--long", "1234"}
+	run()
+	os.Args = []string{"test", "--long", "1234", "--hostname", "localhost"}
+	run()
+}
+
+type argsTestShort struct {
+	Host string `argo:"short=h"`
+	Port int    `argo:"short=p"`
+}
+
+func TestShort(t *testing.T) {
+	run := func() {
+		args := argsTestShort{}
+		if err := Parse(&args); err != nil {
+			t.Fatal(err)
+		}
+		if args.Host != "localhost" {
+			t.Fatalf("expected 'localhost', got '%s'", args.Host)
+		}
+		if args.Port != 1234 {
+			t.Fatalf("expected '1234', got '%d'", args.Port)
+		}
+	}
+	os.Args = []string{"test", "-h", "localhost", "-p", "1234"}
+	run()
+	os.Args = []string{"test", "-p", "1234", "-h", "localhost"}
+	run()
+}
+
+type argsTestRequired struct {
+	Host string `argo:"short=h"`
+	Port int    `argo:"short=p,required"`
+}
+
+func TestRequired(t *testing.T) {
+	os.Args = []string{"test", "-h", "localhost", "-p", "1234"}
+	args := argsTestRequired{}
+	if err := Parse(&args); err != nil {
+		t.Fatal(err)
+	}
+	if args.Host != "localhost" {
+		t.Fatalf("expected 'localhost', got '%s'", args.Host)
+	}
+	if args.Port != 1234 {
+		t.Fatalf("expected '1234', got '%d'", args.Port)
+	}
+
+	os.Args = []string{"test", "-h", "localhost"}
+	args = argsTestRequired{}
+	if err := Parse(&args); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+type argsTestRequired2 struct {
+	Host     string `argo:"short=h"`
+	Port     int    `argo:"short=p,required"`
+	Username string `argo:"short=u,required"`
+}
+
+func TestRequired2(t *testing.T) {
+	os.Args = []string{"test", "-h", "localhost", "-p", "1234", "-u", "user"}
+	args := argsTestRequired2{}
+	if err := Parse(&args); err != nil {
+		t.Fatal(err)
+	}
+	if args.Host != "localhost" {
+		t.Fatalf("expected 'localhost', got '%s'", args.Host)
+	}
+	if args.Port != 1234 {
+		t.Fatalf("expected '1234', got '%d'", args.Port)
+	}
+	if args.Username != "user" {
+		t.Fatalf("expected 'user', got '%s'", args.Username)
+	}
+
+	os.Args = []string{"test", "-h", "localhost", "-p", "1234"}
+	args = argsTestRequired2{}
+	if err := Parse(&args); err == nil {
+		t.Fatal("expected error")
+	}
+
+	os.Args = []string{"test", "-h", "localhost", "-u", "user"}
+	args = argsTestRequired2{}
+	if err := Parse(&args); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+type argsTestEnv struct {
+	Host string `argo:"long=host,env=HOST"`
+	Port int    `argo:"env=PORT"`
+}
+
+func setEnv(t *testing.T, key, value string) {
+	if err := os.Setenv(key, value); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestEnv(t *testing.T) {
+	setEnv(t, "HOST", "localhost")
+	setEnv(t, "PORT", "1234")
+
+	os.Args = []string{"test"}
+	args := argsTestEnv{}
+	if err := Parse(&args); err != nil {
+		t.Fatal(err)
+	}
+	if args.Host != "localhost" {
+		t.Fatalf("expected 'localhost', got '%s'", args.Host)
+	}
+	if args.Port != 1234 {
+		t.Fatalf("expected '1234', got '%d'", args.Port)
+	}
+
+	os.Args = []string{"test", "--host", "127.0.0.1"}
+	args = argsTestEnv{}
+	if err := Parse(&args); err != nil {
+		t.Fatal(err)
+	}
+	if args.Host != "127.0.0.1" {
+		t.Fatalf("expected '127.0.0.1', got '%s'", args.Host)
 	}
 }

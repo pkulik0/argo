@@ -34,18 +34,16 @@ const (
 	errPositionalNotAtEnd       string = "positional arguments must be at the end"
 	errPositionalConflict       string = "positional arguments cannot have short or long attributes"
 	errPositionalDefaultNotLast string = "positional arguments can have a default value only if no arguments without one follow"
-	errDuplicateFlagName        string = "duplicate flag name"
+	errDuplicateFlagName        string = "duplicate flag name, consider changing the short or long attribute"
 	errUnknownFlagName          string = "unknown flag name"
 	errUnexpectedArgument       string = "unexpected argument"
 	errRequiredNotSet           string = "required argument not set"
 	errPositionalNotSet         string = "positional argument not set"
-	errFieldNotExported         string = "field is not exported"
+	errFieldNotExported         string = "field must be exported"
 	errCouldNotSet              string = "could not set value"
 )
 
 type setterFunc func(string, reflect.Value) error
-
-type fieldSetterFunc func(string) error
 
 var setters = map[reflect.Kind]setterFunc{
 	reflect.String: func(s string, value reflect.Value) error {
@@ -120,7 +118,7 @@ type field struct {
 	isRequired   bool
 	help         string
 	defaultValue string
-	setter       fieldSetterFunc
+	setter       func(string) error
 	wasSet       bool
 }
 
