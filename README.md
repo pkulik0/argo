@@ -14,18 +14,27 @@ package main
     
 import "github.com/pkulik0/argo"
 
-type myArgs struct {
+type example struct {
 	Address string `argo:"short,long=addr"`
 	Port    int    `argo:"short,long,required"`
 }
 
-type myArgs2 struct {
-	Username string `argo:"positional,default=admin"`
-	Password int    `argo:"required,env"`
+type example2 struct {
+	SecretNumber int8   `argo:"required,env"`
+	Username     string `argo:"positional,default=admin"`
+}
+
+type example3 struct {
+	Pi          float64 `argo:"short,long,default=3.14"`
+	ApiKey      string  `argo:"env,required"`
+	Verbose     bool    `argo:"short,long"`
+	Name        string  `argo:"short,long,default=John"`
+	Source      string  `argo:"positional"`
+	Destination string  `argo:"positional,default=."`
 }
 
 func main() {
-	args := &myArgs{}
+	args := &example{}
 	err := argo.Parse(args)
 	if err != nil {
 		panic(err)
@@ -37,7 +46,7 @@ func main() {
 
 - `short` - enables a single character flag 
 - `long` - enables a multi character flag
-- `positional` - enables a positional argument at the next available position, can't be used with `short` or `long`
+- `positional` - enables a positional argument 
 - `required` - makes the argument required
 - `env` - query the environment for the argument value
 - `default` - provides a default value for the argument

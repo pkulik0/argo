@@ -7,7 +7,7 @@ import (
 )
 
 func TestParseAttributesFlags(t *testing.T) {
-	attribs := &field{}
+	attribs := &arg{}
 	if err := parseAttribute("name", "short=s", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -15,7 +15,7 @@ func TestParseAttributesFlags(t *testing.T) {
 		t.Fatalf("expected 's', got '%s'", attribs.short)
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "short", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func TestParseAttributesFlags(t *testing.T) {
 		t.Fatalf("expected 'n', got '%s'", attribs.short)
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "long", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -31,7 +31,7 @@ func TestParseAttributesFlags(t *testing.T) {
 		t.Fatalf("expected 'name', got '%s'", attribs.long)
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "long=longname", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -39,7 +39,7 @@ func TestParseAttributesFlags(t *testing.T) {
 		t.Fatalf("expected 'longname', got '%s'", attribs.long)
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "positional", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func TestParseAttributesFlags(t *testing.T) {
 }
 
 func TestParseAttributesBool(t *testing.T) {
-	attribs := &field{}
+	attribs := &arg{}
 	if err := parseAttribute("name", "required", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -57,7 +57,7 @@ func TestParseAttributesBool(t *testing.T) {
 		t.Fatal("expected 'isRequired' to be true")
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "required=false", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestParseAttributesBool(t *testing.T) {
 }
 
 func TestParseAttributesString(t *testing.T) {
-	attribs := &field{}
+	attribs := &arg{}
 	if err := parseAttribute("name", "help=help text", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -75,7 +75,7 @@ func TestParseAttributesString(t *testing.T) {
 		t.Fatalf("expected 'help text', got '%s'", attribs.help)
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "default=123,abc", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -83,7 +83,7 @@ func TestParseAttributesString(t *testing.T) {
 		t.Fatalf("expected '123,abc', got '%s'", attribs.defaultValue)
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "env", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -91,7 +91,7 @@ func TestParseAttributesString(t *testing.T) {
 		t.Fatalf("expected 'env' to be 'NAME', got '%s'", attribs.env)
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("abc_123", "env=abc_123", attribs); err != nil {
 		t.Fatal(err)
 	}
@@ -101,52 +101,52 @@ func TestParseAttributesString(t *testing.T) {
 }
 
 func TestParseAttributesInvalid(t *testing.T) {
-	attribs := &field{}
+	attribs := &arg{}
 	if err := parseAttribute("name", "help", attribs); err == nil {
 		t.Fatal("expected error")
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "short=3", attribs); err == nil {
 		t.Fatal("expected error")
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "short=ab_uu", attribs); err == nil {
 		t.Fatal("expected error")
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "long= eoeeo", attribs); err == nil {
 		t.Fatal("expected error")
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "required=something", attribs); err == nil {
 		t.Fatal("expected error")
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "env=321", attribs); err == nil {
 		t.Fatal("expected error")
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "default", attribs); err == nil {
 		t.Fatal("expected error")
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "default=", attribs); err == nil {
 		t.Fatal("expected error")
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "unknown", attribs); err == nil {
 		t.Fatal("expected error")
 	}
 
-	attribs = &field{}
+	attribs = &arg{}
 	if err := parseAttribute("name", "positional=123", attribs); err == nil {
 		t.Fatal("expected error")
 	}
@@ -162,7 +162,7 @@ func TestParseField(t *testing.T) {
 	fieldValue := data.Elem().Field(0)
 	structField := data.Elem().Type().Field(0)
 
-	attribs, err := parseField(fieldValue, structField)
+	attribs, err := parseArgument(fieldValue, structField)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -191,7 +191,7 @@ func TestParseField(t *testing.T) {
 	fieldValue = data.Elem().Field(1)
 	structField = data.Elem().Type().Field(1)
 
-	attribs, err = parseField(fieldValue, structField)
+	attribs, err = parseArgument(fieldValue, structField)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -218,11 +218,21 @@ func TestParseField(t *testing.T) {
 	}
 }
 
+type argsEmptyTag struct {
+	Host string `argo:""`
+}
+
 func TestEmpty(t *testing.T) {
 	os.Args = []string{"test"}
 	var args struct{}
 	if err := Parse(&args); err != nil {
 		t.Fatal(err)
+	}
+
+	os.Args = []string{"test", "--host", "localhost"}
+	args2 := argsEmptyTag{}
+	if err := Parse(&args2); err == nil {
+		t.Fatal("expected error")
 	}
 }
 

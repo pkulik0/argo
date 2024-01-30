@@ -109,7 +109,7 @@ func RegisterSetter(t interface{}, setter setterFunc) error {
 	return nil
 }
 
-type field struct {
+type arg struct {
 	name         string
 	short        string
 	long         string
@@ -134,31 +134,31 @@ func newError(msg string) *argoError {
 	return &argoError{msg}
 }
 
-type registeredArgs struct {
-	short      map[string]*field
-	long       map[string]*field
-	positional []*field
+type argsRegistry struct {
+	short      map[string]*arg
+	long       map[string]*arg
+	positional []*arg
 }
 
-func newRegisteredArgs() *registeredArgs {
-	return &registeredArgs{
-		short:      make(map[string]*field),
-		long:       make(map[string]*field),
-		positional: make([]*field, 0),
+func newArgsRegistry() *argsRegistry {
+	return &argsRegistry{
+		short:      make(map[string]*arg),
+		long:       make(map[string]*arg),
+		positional: make([]*arg, 0),
 	}
 }
 
-func (r *registeredArgs) Range() <-chan *field {
-	ch := make(chan *field)
+func (r *argsRegistry) Range() <-chan *arg {
+	ch := make(chan *arg)
 	go func() {
-		for _, arg := range r.short {
-			ch <- arg
+		for _, argument := range r.short {
+			ch <- argument
 		}
-		for _, arg := range r.long {
-			ch <- arg
+		for _, argument := range r.long {
+			ch <- argument
 		}
-		for _, arg := range r.positional {
-			ch <- arg
+		for _, argument := range r.positional {
+			ch <- argument
 		}
 		close(ch)
 	}()
@@ -177,7 +177,7 @@ func Parse(outputStruct interface{}) error {
 		return newError(errNotPointerToStruct)
 	}
 
-	registeredArgs, err := parseStruct(elem)
+	argumentsRegistry, err := parseStruct(elem)
 	if err != nil {
 		return err
 	}
@@ -185,58 +185,57 @@ func Parse(outputStruct interface{}) error {
 	args := os.Args[1:]
 	positionalIndex := 0
 	for i := 0; i < len(args); i++ {
-		arg := args[i]
+		argText := args[i]
 
-		if strings.HasPrefix(arg, "-") {
+		if strings.HasPrefix(argText, "-") {
 			if positionalIndex != 0 {
 				return newError(errPositionalConflict)
 			}
 
 			i++
-			argName := arg[1:]
+			argName := argText[1:]
 			argValue := args[i]
-			var regArg *field
+			var argument *arg
 
-			if strings.HasPrefix(arg, "--") {
-				argName = arg[2:]
-				regArg = registeredArgs.long[argName]
+			if strings.HasPrefix(argText, "--") {
+				argName = argText[2:]
+				argument = argumentsRegistry.long[argName]
 			} else {
-				regArg = registeredArgs.short[argName]
+				argument = argumentsRegistry.short[argName]
 			}
 
-			if regArg == nil {
+			if argument == nil {
 				return newError(fmt.Sprintf("%s (%s)", errUnknownFlagName, argName))
 			}
-			if err := regArg.setter(argValue); err != nil {
-				return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, regArg.name, arg))
+			if err := argument.setter(argValue); err != nil {
+				return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, argument.name, argText))
 			}
-			regArg.wasSet = true
+
 			continue
 		}
 
-		if len(registeredArgs.positional) == 0 || positionalIndex >= len(registeredArgs.positional) {
-			return newError(fmt.Sprintf("%s (%s)", errUnexpectedArgument, arg))
+		if len(argumentsRegistry.positional) == 0 || positionalIndex >= len(argumentsRegistry.positional) {
+			return newError(fmt.Sprintf("%s (%s)", errUnexpectedArgument, argText))
 		}
 
-		regArg := registeredArgs.positional[positionalIndex]
-		if err := regArg.setter(arg); err != nil {
-			return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, regArg.name, arg))
+		argument := argumentsRegistry.positional[positionalIndex]
+		if err := argument.setter(argText); err != nil {
+			return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, argument.name, argText))
 		}
-		regArg.wasSet = true
 		positionalIndex++
 	}
 
 	alreadyHasPositional := false
-	for regArg := range registeredArgs.Range() {
-		if regArg.wasSet {
+	for argument := range argumentsRegistry.Range() {
+		if argument.wasSet {
 			continue
 		}
 
-		if regArg.isPositional {
+		if argument.isPositional {
 			alreadyHasPositional = true
-			if regArg.defaultValue != "" {
-				if err := regArg.setter(regArg.defaultValue); err != nil {
-					return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, regArg.name, regArg.defaultValue))
+			if argument.defaultValue != "" {
+				if err := argument.setter(argument.defaultValue); err != nil {
+					return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, argument.name, argument.defaultValue))
 				}
 				continue
 			}
@@ -246,33 +245,32 @@ func Parse(outputStruct interface{}) error {
 			return newError(errPositionalNotAtEnd)
 		}
 
-		if regArg.env != "" {
-			envValue := os.Getenv(regArg.env)
+		if argument.env != "" {
+			envValue := os.Getenv(argument.env)
 			if envValue != "" {
-				if err := regArg.setter(envValue); err != nil {
-					return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, regArg.name, envValue))
+				if err := argument.setter(envValue); err != nil {
+					return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, argument.name, envValue))
 				}
-				regArg.wasSet = true
 			}
 		}
-		if regArg.isRequired {
-			return newError(fmt.Sprintf("%s (%s)", errRequiredNotSet, regArg.short))
-		}
-		if regArg.defaultValue != "" {
-			if err := regArg.setter(regArg.defaultValue); err != nil {
-				return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, regArg.name, regArg.defaultValue))
+		if argument.defaultValue != "" {
+			if err := argument.setter(argument.defaultValue); err != nil {
+				return newError(fmt.Sprintf("%s (%s = %s)", errCouldNotSet, argument.name, argument.defaultValue))
 			}
+		}
+		if argument.isRequired {
+			return newError(fmt.Sprintf("%s (%s)", errRequiredNotSet, argument.short))
 		}
 	}
 
 	return nil
 }
 
-func parseStruct(elem reflect.Value) (*registeredArgs, error) {
-	registeredArgs := newRegisteredArgs()
+func parseStruct(elem reflect.Value) (*argsRegistry, error) {
+	registeredArgs := newArgsRegistry()
 
-	alreadyHasPositional := false
-	alreadyHasDefaultedPositional := false
+	hasPositional := false
+	hasDefaultedPositional := false
 	for i := 0; i < elem.NumField(); i++ {
 		value := elem.Field(i)
 		structField := elem.Type().Field(i)
@@ -285,60 +283,60 @@ func parseStruct(elem reflect.Value) (*registeredArgs, error) {
 			continue
 		}
 
-		parsedField, err := parseField(value, structField)
+		argument, err := parseArgument(value, structField)
 		if err != nil {
 			return nil, err
 		}
 
-		if parsedField.isPositional {
-			if alreadyHasDefaultedPositional {
+		if argument.isPositional {
+			if hasDefaultedPositional {
 				return nil, newError(fmt.Sprintf("%s (%s)", errPositionalDefaultNotLast, structField.Name))
 			}
 
-			registeredArgs.positional = append(registeredArgs.positional, parsedField)
+			registeredArgs.positional = append(registeredArgs.positional, argument)
 
-			alreadyHasPositional = true
-			if parsedField.defaultValue != "" {
-				alreadyHasDefaultedPositional = true
+			hasPositional = true
+			if argument.defaultValue != "" {
+				hasDefaultedPositional = true
 			}
-			continue
-		}
-		if alreadyHasPositional {
-			return nil, newError(fmt.Sprintf("%s (%s)", errPositionalNotAtEnd, structField.Name))
-		}
+		} else {
+			if hasPositional {
+				return nil, newError(fmt.Sprintf("%s (%s)", errPositionalNotAtEnd, structField.Name))
+			}
 
-		if parsedField.short != "" {
-			if _, ok := registeredArgs.short[parsedField.short]; ok {
-				return nil, newError(fmt.Sprintf("%s (%s)", errDuplicateFlagName, parsedField.short))
+			if argument.short != "" {
+				if _, ok := registeredArgs.short[argument.short]; ok {
+					return nil, newError(fmt.Sprintf("%s (%s)", errDuplicateFlagName, argument.short))
+				}
+				registeredArgs.short[argument.short] = argument
 			}
-			registeredArgs.short[parsedField.short] = parsedField
-		}
-		if parsedField.long != "" {
-			if _, ok := registeredArgs.long[parsedField.long]; ok {
-				return nil, newError(fmt.Sprintf("%s (%s)", errDuplicateFlagName, parsedField.long))
+			if argument.long != "" {
+				if _, ok := registeredArgs.long[argument.long]; ok {
+					return nil, newError(fmt.Sprintf("%s (%s)", errDuplicateFlagName, argument.long))
+				}
+				registeredArgs.long[argument.long] = argument
 			}
-			registeredArgs.long[parsedField.long] = parsedField
 		}
 	}
 	return registeredArgs, nil
 }
 
-func parseField(fieldValue reflect.Value, structField reflect.StructField) (*field, error) {
-	parsedField := &field{
+func parseArgument(fieldValue reflect.Value, structField reflect.StructField) (*arg, error) {
+	argument := &arg{
 		name: structField.Name,
 	}
 	attributes := strings.Split(structField.Tag.Get(argoTag), attributeSeparator)
 
 	for _, attr := range attributes {
-		if err := parseAttribute(structField.Name, attr, parsedField); err != nil {
+		if err := parseAttribute(structField.Name, attr, argument); err != nil {
 			return nil, err
 		}
 	}
 
-	if parsedField.short == "" && parsedField.long == "" && !parsedField.isPositional {
+	if argument.short == "" && argument.long == "" && !argument.isPositional {
 		fieldName := strings.ToLower(structField.Name)
-		parsedField.short = fieldName[:1]
-		parsedField.long = fieldName
+		argument.short = fieldName[:1]
+		argument.long = fieldName
 	}
 
 	setter, ok := setters[fieldValue.Kind()]
@@ -346,11 +344,12 @@ func parseField(fieldValue reflect.Value, structField reflect.StructField) (*fie
 		return nil, newError(fmt.Sprintf("%s (%s)", errUnsupportedType, fieldValue.Kind()))
 	}
 
-	parsedField.setter = func(value string) error {
+	argument.setter = func(value string) error {
+		argument.wasSet = true
 		return setter(value, fieldValue)
 	}
 
-	return parsedField, nil
+	return argument, nil
 }
 
 func attributeToKeyValue(attribute string) (string, string, error) {
@@ -360,10 +359,9 @@ func attributeToKeyValue(attribute string) (string, string, error) {
 	}
 
 	attrKey := attrParts[0]
-	if len(attrParts) != 2 {
+	if len(attrParts) == 1 {
 		return attrKey, "", nil
 	}
-
 	return attrKey, attrParts[1], nil
 }
 
@@ -404,7 +402,7 @@ func parseAttributeIdentifier(value string, defaultValue string, out *string) er
 	return nil
 }
 
-func parseAttribute(fieldName string, attribute string, parsedAttributes *field) error {
+func parseAttribute(fieldName string, attribute string, argument *arg) error {
 	if attribute == "" {
 		return newError(errMalformedAttribute)
 	}
@@ -426,25 +424,25 @@ func parseAttribute(fieldName string, attribute string, parsedAttributes *field)
 				return err
 			}
 		}
-		parsedAttributes.short = attrValue[:1]
+		argument.short = attrValue[:1]
 	case longAttribute:
-		return parseAttributeIdentifier(attrValue, strings.ToLower(fieldName), &parsedAttributes.long)
+		return parseAttributeIdentifier(attrValue, strings.ToLower(fieldName), &argument.long)
 	case positionalAttribute:
-		return parseAttributeBool(attrValue, &parsedAttributes.isPositional)
+		return parseAttributeBool(attrValue, &argument.isPositional)
 	case requiredAttribute:
-		return parseAttributeBool(attrValue, &parsedAttributes.isRequired)
+		return parseAttributeBool(attrValue, &argument.isRequired)
 	case envAttribute:
-		return parseAttributeIdentifier(attrValue, strings.ToUpper(fieldName), &parsedAttributes.env)
+		return parseAttributeIdentifier(attrValue, strings.ToUpper(fieldName), &argument.env)
 	case helpAttribute:
 		if attrValue == "" {
 			return newError(fmt.Sprintf("%s (%s)", errAttributeMissingValue, attrKey))
 		}
-		parsedAttributes.help = attrValue
+		argument.help = attrValue
 	case defaultAttribute:
 		if attrValue == "" {
 			return newError(fmt.Sprintf("%s (%s)", errAttributeMissingValue, attrKey))
 		}
-		parsedAttributes.defaultValue = attrValue
+		argument.defaultValue = attrValue
 	default:
 		return newError(fmt.Sprintf("%s (%s)", errUnknownAttribute, attrKey))
 	}
