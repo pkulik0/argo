@@ -1,6 +1,7 @@
 package argo
 
 import (
+	"errors"
 	"fmt"
 	"os"
 	"reflect"
@@ -95,19 +96,31 @@ func (r *argsRegistry) asRange() <-chan *arg {
 	return ch
 }
 
-func Parse(outputStruct interface{}) error {
-	outputValue := reflect.ValueOf(outputStruct)
+func (r *argsRegistry) deduplicated() map[*arg]struct{} {
+	dedup := make(map[*arg]struct{})
+	for argument := range r.asRange() {
+		dedup[argument] = struct{}{}
+	}
+	return dedup
+}
+
+func interfaceToArgsRegistry(input interface{}) (*argsRegistry, error) {
+	outputValue := reflect.ValueOf(input)
 
 	if outputValue.Kind() != reflect.Ptr || outputValue.IsNil() {
-		return newError(errNotPointerToStruct)
+		return nil, newError(errNotPointerToStruct)
 	}
 
 	elem := outputValue.Elem()
 	if elem.Kind() != reflect.Struct {
-		return newError(errNotPointerToStruct)
+		return nil, newError(errNotPointerToStruct)
 	}
 
-	argumentsRegistry, err := newArgsRegistry(elem)
+	return newArgsRegistry(elem)
+}
+
+func Parse(input interface{}) error {
+	argumentsRegistry, err := interfaceToArgsRegistry(input)
 	if err != nil {
 		return err
 	}
@@ -117,6 +130,82 @@ func Parse(outputStruct interface{}) error {
 	}
 
 	return validateArgsRegistry(argumentsRegistry)
+}
+
+func PrintHelp(input interface{}) error {
+	argumentsRegistry, err := interfaceToArgsRegistry(input)
+	if err != nil {
+		return err
+	}
+	return argumentsRegistry.printHelp()
+}
+
+func (r *argsRegistry) printHelp() error {
+	flags := make([]string, 0)
+	positionals := make([]string, 0)
+	envs := make([]string, 0)
+
+	for argument := range r.deduplicated() {
+		if argument.isPositional {
+			positionals = append(positionals, fmt.Sprintf("<%s>", argument.name))
+			continue
+		}
+
+		flag := ""
+		if argument.short != "" {
+			flag += fmt.Sprintf("-%s", argument.short)
+		}
+
+		if argument.long != "" {
+			if flag != "" {
+				flag += ", "
+			}
+			flag += fmt.Sprintf("--%s", argument.long)
+		}
+
+		hasFlag := flag != ""
+		if argument.env != "" {
+			if hasFlag {
+				flag += " "
+			}
+			flag += fmt.Sprintf("[ENV: %s]", argument.env)
+		}
+
+		if argument.help != "" {
+			flag += fmt.Sprintf(" - %s", argument.help)
+		}
+
+		if argument.defaultValue != "" {
+			flag += fmt.Sprintf(" (default: %s)", argument.defaultValue)
+		}
+
+		if argument.isRequired {
+			flag += " (REQUIRED)"
+		}
+
+		if hasFlag {
+			flags = append(flags, flag)
+		} else {
+			envs = append(envs, flag)
+		}
+	}
+
+	output := fmt.Sprintf("Usage: ./%s [flags] %s\n", os.Args[0], strings.Join(positionals, " "))
+
+	flags = append(flags, " -h, --help - Print this help message")
+	output += "\nFlags:\n"
+	for _, flag := range flags {
+		output += fmt.Sprintf("  %s\n", flag)
+	}
+
+	if len(envs) > 0 {
+		output += "\nEnvironment variables:\n"
+		for _, env := range envs {
+			output += fmt.Sprintf("  %s\n", env)
+		}
+	}
+
+	return errors.New(output)
 }
 
 func (r *argsRegistry) parseInput() error {
@@ -129,6 +218,10 @@ func (r *argsRegistry) parseInput() error {
 		if argText == "--" {
 			explicitPositional = true
 			continue
+		}
+
+		if argText == "-h" || argText == "--help" {
+			return r.printHelp()
 		}
 
 		if strings.HasPrefix(argText, "-") && !explicitPositional {
@@ -177,12 +270,7 @@ func (r *argsRegistry) parseInput() error {
 }
 
 func validateArgsRegistry(argumentsRegistry *argsRegistry) error {
-	deduplicatedArgs := make(map[*arg]struct{})
-	for argument := range argumentsRegistry.asRange() {
-		deduplicatedArgs[argument] = struct{}{}
-	}
-
-	for argument := range deduplicatedArgs {
+	for argument := range argumentsRegistry.deduplicated() {
 		if argument.wasSet {
 			continue
 		}
@@ -300,6 +388,10 @@ func parseArgument(fieldValue reflect.Value, structField reflect.StructField) (*
 		fieldName := strings.ToLower(structField.Name)
 		argument.short = fieldName[:1]
 		argument.long = fieldName
+	}
+
+	if argument.short == "h" || argument.long == "help" {
+		return nil, newError(fmt.Sprintf("%s (%s)", errDuplicateFlagName, argument.short))
 	}
 
 	kind := structField.Type.Kind()

@@ -384,7 +384,7 @@ func TestLong(t *testing.T) {
 }
 
 type argsTestShort struct {
-	Host string `argo:"short=h"`
+	Host string `argo:"short=a"`
 	Port int    `argo:"short=p"`
 }
 
@@ -401,19 +401,19 @@ func TestShort(t *testing.T) {
 			t.Fatalf("expected '1234', got '%d'", args.Port)
 		}
 	}
-	os.Args = []string{"test", "-h", "localhost", "-p", "1234"}
+	os.Args = []string{"test", "-a", "localhost", "-p", "1234"}
 	run()
-	os.Args = []string{"test", "-p", "1234", "-h", "localhost"}
+	os.Args = []string{"test", "-p", "1234", "-a", "localhost"}
 	run()
 }
 
 type argsTestRequired struct {
-	Host string `argo:"short=h"`
+	Host string `argo:"short=a"`
 	Port int    `argo:"short=p,required"`
 }
 
 func TestRequired(t *testing.T) {
-	os.Args = []string{"test", "-h", "localhost", "-p", "1234"}
+	os.Args = []string{"test", "-a", "localhost", "-p", "1234"}
 	args := argsTestRequired{}
 	if err := Parse(&args); err != nil {
 		t.Fatal(err)
@@ -425,7 +425,7 @@ func TestRequired(t *testing.T) {
 		t.Fatalf("expected '1234', got '%d'", args.Port)
 	}
 
-	os.Args = []string{"test", "-h", "localhost"}
+	os.Args = []string{"test", "-a", "localhost"}
 	args = argsTestRequired{}
 	if err := Parse(&args); err == nil {
 		t.Fatal("expected error")
@@ -433,13 +433,13 @@ func TestRequired(t *testing.T) {
 }
 
 type argsTestRequired2 struct {
-	Host     string `argo:"short=h"`
+	Host     string `argo:"short=a"`
 	Port     int    `argo:"short=p,required"`
 	Username string `argo:"short=u,required"`
 }
 
 func TestRequired2(t *testing.T) {
-	os.Args = []string{"test", "-h", "localhost", "-p", "1234", "-u", "user"}
+	os.Args = []string{"test", "-a", "localhost", "-p", "1234", "-u", "user"}
 	args := argsTestRequired2{}
 	if err := Parse(&args); err != nil {
 		t.Fatal(err)
@@ -454,13 +454,13 @@ func TestRequired2(t *testing.T) {
 		t.Fatalf("expected 'user', got '%s'", args.Username)
 	}
 
-	os.Args = []string{"test", "-h", "localhost", "-p", "1234"}
+	os.Args = []string{"test", "-a", "localhost", "-p", "1234"}
 	args = argsTestRequired2{}
 	if err := Parse(&args); err == nil {
 		t.Fatal("expected error")
 	}
 
-	os.Args = []string{"test", "-h", "localhost", "-u", "user"}
+	os.Args = []string{"test", "-a", "localhost", "-u", "user"}
 	args = argsTestRequired2{}
 	if err := Parse(&args); err == nil {
 		t.Fatal("expected error")
@@ -939,6 +939,48 @@ type argsUnknown struct {
 func TestUnknown(t *testing.T) {
 	os.Args = []string{"test", "-a", "123"}
 	args := argsUnknown{}
+	if err := Parse(&args); err == nil {
+		t.Fatal("expected error")
+	}
+}
+
+type argsHelp struct {
+	A bool   `argo:"long=aha,help=help text"`
+	B int    `argo:"short,long,help=BBBBBBBBBBB"`
+	C string `argo:"positional,help=CCCCCCCCC"`
+	D string `argo:"env=VAL,required,help=Msg for D"`
+	E string `argo:"short,env,default=123,help=Msg for E"`
+}
+
+func TestHelp(t *testing.T) {
+	os.Args = []string{"test", "--help"}
+	args := argsHelp{}
+	if err := Parse(&args); err == nil {
+		t.Fatal("expected error")
+	}
+
+	args = argsHelp{}
+	if err := PrintHelp(&args); err == nil {
+		t.Fatal("expected error")
+	} else if !strings.Contains(err.Error(), "Usage: ./test") {
+		t.Fatal("expected help text")
+	}
+
+	num := 1
+	if err := PrintHelp(&num); err == nil {
+		t.Fatal("expected error")
+	} else if strings.Contains(err.Error(), "Usage: ./test") {
+		t.Fatal("should have failed")
+	}
+}
+
+type argsHelpConflict struct {
+	Help bool `argo:"short,long"`
+}
+
+func TestHelpConflict(t *testing.T) {
+	os.Args = []string{"test", "-h"}
+	args := argsHelpConflict{}
 	if err := Parse(&args); err == nil {
 		t.Fatal("expected error")
 	}
