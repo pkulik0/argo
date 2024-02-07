@@ -26,23 +26,23 @@ const (
 )
 
 var (
-	errNotPointerToStruct       = newArgoError("argument must be a pointer to a struct")
-	errAttributeMissingValue    = newArgoError("attribute missing value")
-	errUnknownAttribute         = newArgoError("unknown attribute")
-	errMalformedAttribute       = newArgoError("malformed attribute")
-	errAttributeInvalidValue    = newArgoError("attribute has invalid value")
-	errShortNotSingleChar       = newArgoError("short attribute value must be a single character")
-	errUnsupportedType          = newArgoError("unsupported type")
-	errSetterAlreadyExists      = newArgoError("setter already exists")
-	errPositionalNotAtEnd       = newArgoError("positional arguments must be at the end")
-	errPositionalDefaultNotLast = newArgoError("positional arguments can have a default value only if no arguments without one follow")
-	errDuplicateFlagName        = newArgoError("duplicate flag name, consider changing the short or long attribute")
-	errUnknownArgumentName      = newArgoError("unknown argument name")
-	errUnexpectedArgument       = newArgoError("unexpected argument")
-	errRequiredNotSet           = newArgoError("required argument not set")
-	errPositionalNotSet         = newArgoError("positional argument not set")
-	errFieldNotExported         = newArgoError("field must be exported")
-	errCouldNotSet              = newArgoError("could not set value")
+	ErrNotPointerToStruct       = newArgoError("argument must be a pointer to a struct")
+	ErrAttributeMissingValue    = newArgoError("attribute missing value")
+	ErrUnknownAttribute         = newArgoError("unknown attribute")
+	ErrMalformedAttribute       = newArgoError("malformed attribute")
+	ErrAttributeInvalidValue    = newArgoError("attribute has invalid value")
+	ErrShortNotSingleChar       = newArgoError("short attribute value must be a single character")
+	ErrUnsupportedType          = newArgoError("unsupported type")
+	ErrSetterAlreadyExists      = newArgoError("setter already exists")
+	ErrPositionalNotAtEnd       = newArgoError("positional arguments must be at the end")
+	ErrPositionalDefaultNotLast = newArgoError("positional arguments can have a default value only if no arguments without one follow")
+	ErrDuplicateFlagName        = newArgoError("duplicate flag name, consider changing the short or long attribute")
+	ErrUnknownArgumentName      = newArgoError("unknown argument name")
+	ErrUnexpectedArgument       = newArgoError("unexpected argument")
+	ErrRequiredNotSet           = newArgoError("required argument not set")
+	ErrPositionalNotSet         = newArgoError("positional argument not set")
+	ErrFieldNotExported         = newArgoError("field must be exported")
+	ErrCouldNotSet              = newArgoError("could not set value")
 )
 
 type arg struct {
@@ -110,12 +110,12 @@ func interfaceToArgsRegistry(input interface{}) (*argsRegistry, error) {
 	outputValue := reflect.ValueOf(input)
 
 	if outputValue.Kind() != reflect.Ptr || outputValue.IsNil() {
-		return nil, errNotPointerToStruct
+		return nil, ErrNotPointerToStruct
 	}
 
 	elem := outputValue.Elem()
 	if elem.Kind() != reflect.Struct {
-		return nil, errNotPointerToStruct
+		return nil, ErrNotPointerToStruct
 	}
 
 	return newArgsRegistry(elem)
@@ -228,7 +228,7 @@ func (r *argsRegistry) parseInput() error {
 
 		if strings.HasPrefix(argText, "-") && !explicitPositional {
 			if positionalIndex != 0 {
-				return errPositionalNotAtEnd
+				return ErrPositionalNotAtEnd
 			}
 
 			argName := argText[1:]
@@ -242,14 +242,14 @@ func (r *argsRegistry) parseInput() error {
 			}
 
 			if argument == nil {
-				return errUnknownArgumentName
+				return ErrUnknownArgumentName
 			}
 
 			if !argument.isFlag {
 				i++
 				err := argument.setter(args[i])
 				if err != nil {
-					return errCouldNotSet
+					return ErrCouldNotSet
 				}
 			} else {
 				_ = argument.setter("true")
@@ -259,12 +259,12 @@ func (r *argsRegistry) parseInput() error {
 		}
 
 		if len(r.positional) == 0 || positionalIndex >= len(r.positional) {
-			return errUnexpectedArgument
+			return ErrUnexpectedArgument
 		}
 
 		argument := r.positional[positionalIndex]
 		if err := argument.setter(argText); err != nil {
-			return errCouldNotSet
+			return ErrCouldNotSet
 		}
 		positionalIndex++
 	}
@@ -280,18 +280,18 @@ func validateArgsRegistry(argumentsRegistry *argsRegistry) error {
 		if argument.isPositional {
 			if argument.defaultValue != "" {
 				if err := argument.setter(argument.defaultValue); err != nil {
-					return errCouldNotSet
+					return ErrCouldNotSet
 				}
 				continue
 			}
-			return errPositionalNotSet
+			return ErrPositionalNotSet
 		}
 
 		if argument.env != "" {
 			envValue := os.Getenv(argument.env)
 			if envValue != "" {
 				if err := argument.setter(envValue); err != nil {
-					return errCouldNotSet
+					return ErrCouldNotSet
 				}
 				continue
 			}
@@ -299,13 +299,13 @@ func validateArgsRegistry(argumentsRegistry *argsRegistry) error {
 
 		if argument.defaultValue != "" {
 			if err := argument.setter(argument.defaultValue); err != nil {
-				return errCouldNotSet
+				return ErrCouldNotSet
 			}
 			continue
 		}
 
 		if argument.isRequired {
-			return errRequiredNotSet
+			return ErrRequiredNotSet
 		}
 	}
 	return nil
@@ -325,7 +325,7 @@ func newArgsRegistry(elem reflect.Value) (*argsRegistry, error) {
 		structField := elem.Type().Field(i)
 
 		if !structField.IsExported() {
-			return nil, errFieldNotExported
+			return nil, ErrFieldNotExported
 		}
 
 		if structField.Tag.Get(argoTag) == "" {
@@ -339,7 +339,7 @@ func newArgsRegistry(elem reflect.Value) (*argsRegistry, error) {
 
 		if argument.isPositional {
 			if hasDefaultedPositional {
-				return nil, errPositionalDefaultNotLast
+				return nil, ErrPositionalDefaultNotLast
 			}
 
 			registeredArgs.positional = append(registeredArgs.positional, argument)
@@ -352,21 +352,21 @@ func newArgsRegistry(elem reflect.Value) (*argsRegistry, error) {
 
 		if argument.env != "" {
 			if _, ok := registeredArgs.env[argument.env]; ok {
-				return nil, errDuplicateFlagName
+				return nil, ErrDuplicateFlagName
 			}
 			registeredArgs.env[argument.env] = argument
 		}
 
 		if argument.short != "" {
 			if _, ok := registeredArgs.short[argument.short]; ok {
-				return nil, errDuplicateFlagName
+				return nil, ErrDuplicateFlagName
 			}
 			registeredArgs.short[argument.short] = argument
 		}
 
 		if argument.long != "" {
 			if _, ok := registeredArgs.long[argument.long]; ok {
-				return nil, errDuplicateFlagName
+				return nil, ErrDuplicateFlagName
 			}
 			registeredArgs.long[argument.long] = argument
 		}
@@ -393,7 +393,7 @@ func parseArgument(fieldValue reflect.Value, structField reflect.StructField) (*
 	}
 
 	if argument.short == "h" || argument.long == "help" {
-		return nil, errDuplicateFlagName
+		return nil, ErrDuplicateFlagName
 	}
 
 	kind := structField.Type.Kind()
@@ -404,7 +404,7 @@ func parseArgument(fieldValue reflect.Value, structField reflect.StructField) (*
 
 	setter, ok := setters[kind]
 	if !ok {
-		return nil, errUnsupportedType
+		return nil, ErrUnsupportedType
 	}
 
 	argument.setter = func(value string) error {
@@ -429,7 +429,7 @@ func parseArgument(fieldValue reflect.Value, structField reflect.StructField) (*
 func attributeToKeyValue(attribute string) (string, string, error) {
 	attrParts := strings.Split(attribute, attributeValueSeparator)
 	if len(attrParts) != 1 && len(attrParts) != 2 {
-		return "", "", errMalformedAttribute
+		return "", "", ErrMalformedAttribute
 	}
 
 	attrKey := attrParts[0]
@@ -442,7 +442,7 @@ func attributeToKeyValue(attribute string) (string, string, error) {
 func validateIdentifier(value string) error {
 	matched, err := regexp.MatchString("^[a-zA-Z][a-zA-Z0-9_]*$", value)
 	if err != nil || !matched {
-		return errAttributeInvalidValue
+		return ErrAttributeInvalidValue
 	}
 	return nil
 }
@@ -455,7 +455,7 @@ func parseAttributeBool(value string, out *bool) error {
 
 	boolValue, err := strconv.ParseBool(value)
 	if err != nil {
-		return errAttributeInvalidValue
+		return ErrAttributeInvalidValue
 	}
 	*out = boolValue
 
@@ -488,7 +488,7 @@ func parseAttribute(fieldName string, attribute string, argument *arg) error {
 			attrValue = strings.ToLower(fieldName)
 		} else {
 			if len(attrValue) != 1 {
-				return errShortNotSingleChar
+				return ErrShortNotSingleChar
 			}
 			if err := validateIdentifier(attrValue); err != nil {
 				return err
@@ -505,16 +505,16 @@ func parseAttribute(fieldName string, attribute string, argument *arg) error {
 		return parseAttributeIdentifier(attrValue, strings.ToUpper(fieldName), &argument.env)
 	case helpAttribute:
 		if attrValue == "" {
-			return errAttributeMissingValue
+			return ErrAttributeMissingValue
 		}
 		argument.help = attrValue
 	case defaultAttribute:
 		if attrValue == "" {
-			return errAttributeMissingValue
+			return ErrAttributeMissingValue
 		}
 		argument.defaultValue = attrValue
 	default:
-		return errUnknownAttribute
+		return ErrUnknownAttribute
 	}
 	return nil
 }
@@ -579,7 +579,7 @@ var setters = map[reflect.Kind]setterFunc{
 func RegisterSetter(t interface{}, setter setterFunc) error {
 	kind := reflect.TypeOf(t).Kind()
 	if _, ok := setters[kind]; ok {
-		return errSetterAlreadyExists
+		return ErrSetterAlreadyExists
 	}
 	setters[kind] = setter
 	return nil

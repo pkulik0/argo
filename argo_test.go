@@ -670,13 +670,13 @@ type CustomType struct {
 func customTypeSetter(s string, value reflect.Value) error {
 	parts := strings.Split(s, ",")
 	if len(parts) != 2 {
-		return errCouldNotSet
+		return ErrCouldNotSet
 	}
 	value.Field(0).SetString(parts[0])
 
 	num, err := strconv.ParseInt(parts[1], 10, 0)
 	if err != nil {
-		return errCouldNotSet
+		return ErrCouldNotSet
 	}
 	value.Field(1).SetInt(num)
 	return nil
