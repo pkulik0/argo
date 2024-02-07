@@ -6,6 +6,11 @@ It supports positional arguments, environment variables, default values, and fla
 
 Configuration is done through struct tags.
 
+## Installation
+
+```bash
+go get -u github.com/pkulik0/argo
+```
 
 ## Example
 
@@ -68,9 +73,3 @@ func main() {
 - `bool`
 - `interface`
 - Use `argo.RegisterSetter()` to register a custom setter for a type
-
-## Installation
-
-```bash
-go get -u github.com/pkulik0/argo
-```
