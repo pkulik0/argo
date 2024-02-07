@@ -23,24 +23,26 @@ const (
 
 	attributeSeparator      string = ","
 	attributeValueSeparator string = "="
+)
 
-	errNotPointerToStruct       string = "argument must be a pointer to a struct"
-	errAttributeMissingValue    string = "attribute missing value"
-	errUnknownAttribute         string = "unknown attribute"
-	errMalformedAttribute       string = "malformed attribute"
-	errAttributeInvalidValue    string = "attribute has invalid value"
-	errShortNotSingleChar       string = "short attribute value must be a single character"
-	errUnsupportedType          string = "unsupported type"
-	errSetterAlreadyExists      string = "setter already exists"
-	errPositionalNotAtEnd       string = "positional arguments must be at the end"
-	errPositionalDefaultNotLast string = "positional arguments can have a default value only if no arguments without one follow"
-	errDuplicateFlagName        string = "duplicate flag name, consider changing the short or long attribute"
-	errUnknownArgumentName      string = "unknown argument name"
-	errUnexpectedArgument       string = "unexpected argument"
-	errRequiredNotSet           string = "required argument not set"
-	errPositionalNotSet         string = "positional argument not set"
-	errFieldNotExported         string = "field must be exported"
-	errCouldNotSet              string = "could not set value"
+var (
+	errNotPointerToStruct       = errors.New("argument must be a pointer to a struct")
+	errAttributeMissingValue    = errors.New("attribute missing value")
+	errUnknownAttribute         = errors.New("unknown attribute")
+	errMalformedAttribute       = errors.New("malformed attribute")
+	errAttributeInvalidValue    = errors.New("attribute has invalid value")
+	errShortNotSingleChar       = errors.New("short attribute value must be a single character")
+	errUnsupportedType          = errors.New("unsupported type")
+	errSetterAlreadyExists      = errors.New("setter already exists")
+	errPositionalNotAtEnd       = errors.New("positional arguments must be at the end")
+	errPositionalDefaultNotLast = errors.New("positional arguments can have a default value only if no arguments without one follow")
+	errDuplicateFlagName        = errors.New("duplicate flag name, consider changing the short or long attribute")
+	errUnknownArgumentName      = errors.New("unknown argument name")
+	errUnexpectedArgument       = errors.New("unexpected argument")
+	errRequiredNotSet           = errors.New("required argument not set")
+	errPositionalNotSet         = errors.New("positional argument not set")
+	errFieldNotExported         = errors.New("field must be exported")
+	errCouldNotSet              = errors.New("could not set value")
 )
 
 type arg struct {
@@ -108,12 +110,12 @@ func interfaceToArgsRegistry(input interface{}) (*argsRegistry, error) {
 	outputValue := reflect.ValueOf(input)
 
 	if outputValue.Kind() != reflect.Ptr || outputValue.IsNil() {
-		return nil, newError(errNotPointerToStruct)
+		return nil, errNotPointerToStruct
 	}
 
 	elem := outputValue.Elem()
 	if elem.Kind() != reflect.Struct {
-		return nil, newError(errNotPointerToStruct)
+		return nil, errNotPointerToStruct
 	}
 
 	return newArgsRegistry(elem)
@@ -226,7 +228,7 @@ func (r *argsRegistry) parseInput() error {
 
 		if strings.HasPrefix(argText, "-") && !explicitPositional {
 			if positionalIndex != 0 {
-				return newError(errPositionalNotAtEnd)
+				return errPositionalNotAtEnd
 			}
 
 			argName := argText[1:]
@@ -282,7 +284,7 @@ func validateArgsRegistry(argumentsRegistry *argsRegistry) error {
 				}
 				continue
 			}
-			return newError(errPositionalNotSet)
+			return errPositionalNotSet
 		}
 
 		if argument.env != "" {
